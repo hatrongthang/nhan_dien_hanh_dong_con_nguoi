@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human Action Recognition</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+        .recent-action {
+            position: relative;
+            padding-left: 20px;
+            transition: transform 0.2s ease;
+        }
+        .recent-action:hover {
+            transform: translateX(5px);
+        }
+        .recent-action::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: #22c55e;
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+        .recent-action:hover::before {
+            width: 6px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        .video-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+        .action-item {
+            position: relative;
+            background-color: #fee2e2;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        .action-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            border-top-left-radius: 10px;
+            border-bottom-left-radius: 10px;
+            transition: width 0.2s ease;
+        }
+        .action-item:hover {
+            transform: translateX(5px);
+        }
+        .action-item.low-confidence::before {
+            background-color: #ef4444;
+        }
+        .action-item.high-confidence {
+            background-color: #dcfce7;
+        }
+        .action-item.high-confidence::before {
+            background-color: #22c55e;
+        }
+        .value-text {
+            color: #0284c7;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(2, 132, 199, 0.1);
+        }
+        .blue-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: #0284c7;
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+        .main-title {
+            font-family: 'Orbitron', sans-serif;
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            position: relative;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            animation: titleGlow 2s ease-in-out infinite alternate;
+        }
+        .main-title::after {
+            content: '🎥';
+            position: absolute;
+            right: -40px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            animation: float 3s ease-in-out infinite;
+        }
+        .main-title::before {
+            content: '🎬';
+            position: absolute;
+            left: -40px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            animation: float 3s ease-in-out infinite reverse;
+        }
+        @keyframes titleGlow {
+            from {
+                text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+            }
+            to {
+                text-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+            }
+        }
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(-50%) translateX(0);
+            }
+            50% {
+                transform: translateY(-50%) translateX(10px);
+            }
+        }
+        .card h2 {
+            position: relative;
+            display: inline-block;
+        }
+        .card h2::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -4px;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #3b82f6 0%, #22c55e 100%);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+        .card:hover h2::after {
+            transform: scaleX(1);
+        }
+        .stat-icon {
+            margin-right: 8px;
+            color: #3b82f6;
+        }
+        .recent-actions-container {
+            max-height: 240px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #3b82f6 transparent;
+        }
+        .recent-actions-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .recent-actions-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .recent-actions-container::-webkit-scrollbar-thumb {
+            background-color: #3b82f6;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="main-title">Human Action Recognition</h1>
+        <div class="grid grid-cols-1 md:grid-cols-7 gap-6">
+            <!-- Person Detection Card -->
+            <div class="card p-6 md:col-span-2">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">
+                    <i class="fas fa-user-check stat-icon"></i>Person Detection
+                </h2>
+                <div class="space-y-4">
+                    <div class="relative pl-6">
+                        <div class="blue-bar"></div>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-tachometer-alt stat-icon"></i>FPS:
+                        </p>
+                        <p id="fps" class="text-lg value-text">0</p>
+                    </div>
+                    <div class="relative pl-6">
+                        <div class="blue-bar"></div>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-wave-square stat-icon"></i>Motion Value:
+                        </p>
+                        <p id="motion-value" class="text-lg value-text">0</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 mb-3">
+                            <i class="fas fa-list-ul stat-icon"></i>Actions:
+                        </p>
+                        <div id="actions-container" class="space-y-2">
+                            <!-- Action items will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Feed Card -->
+            <div class="card md:col-span-3">
+                <div class="video-container">
+                    <img src="{{ url_for('video_feed') }}" class="rounded-lg">
+                </div>
+            </div>
+
+            <!-- Action Detection Card -->
+            <div class="card p-6 md:col-span-2">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">
+                    <i class="fas fa-running stat-icon"></i>Action Detection
+                </h2>
+                <div class="space-y-4">
+                    <div class="relative pl-6">
+                        <div class="blue-bar"></div>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-play-circle stat-icon"></i>Current Action:
+                        </p>
+                        <p id="current-action" class="text-lg value-text">None</p>
+                    </div>
+                    <div class="relative pl-6">
+                        <div class="blue-bar"></div>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-clock stat-icon"></i>Time:
+                        </p>
+                        <p id="current-time" class="text-lg value-text">00:00:00</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 mb-4">
+                            <i class="fas fa-history stat-icon"></i>Recent Actions
+                        </p>
+                        <div id="recent-actions" class="space-y-3 recent-actions-container">
+                            <!-- Recent actions will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateData() {
+            fetch('/get_data')
+                .then(response => response.json())
+                .then(data => {
+                    // Update FPS with animation
+                    const fpsElement = document.getElementById('fps');
+                    animateValue(fpsElement, parseFloat(fpsElement.textContent), data.fps, 500);
+                    
+                    // Update Motion Value with animation
+                    const motionElement = document.getElementById('motion-value');
+                    animateValue(motionElement, parseFloat(motionElement.textContent), data.motion_value, 500);
+                    
+                    // Update Current Action
+                    document.getElementById('current-action').textContent = 
+                        `${data.current_action} (${(data.confidence * 100).toFixed(1)}%)`;
+                    
+                    // Update Time
+                    const now = new Date();
+                    document.getElementById('current-time').textContent = 
+                        now.toTimeString().split(' ')[0];
+                    
+                    // Update Action Bars
+                    const actionsContainer = document.getElementById('actions-container');
+                    actionsContainer.innerHTML = '';
+                    
+                    for (const [action, confidence] of Object.entries(data.actions_confidence)) {
+                        const confidenceClass = confidence > 0.7 ? 'high-confidence' : 'low-confidence';
+                        const icon = getActionIcon(action);
+                        const actionItem = `
+                            <div class="action-item ${confidenceClass} flex justify-between items-center">
+                                <span class="text-sm text-gray-600">
+                                    <i class="${icon} stat-icon"></i>${action}:
+                                </span>
+                                <span class="text-sm text-gray-600">
+                                    ${(confidence * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                        `;
+                        actionsContainer.innerHTML += actionItem;
+                    }
+                    
+                    // Update Recent Actions
+                    const recentActions = document.getElementById('recent-actions');
+                    const actionEntry = `
+                        <div class="recent-action flex items-center justify-between py-1">
+                            <span class="text-sm text-gray-600">
+                                <i class="fas fa-arrow-right stat-icon"></i>${data.current_action}
+                            </span>
+                            <span class="text-sm text-gray-600">${now.toTimeString().split(' ')[0]}</span>
+                        </div>
+                    `;
+                    
+                    if (recentActions.children.length >= 6) {
+                        recentActions.removeChild(recentActions.lastChild);
+                    }
+                    recentActions.insertAdjacentHTML('afterbegin', actionEntry);
+                });
+        }
+
+        function getActionIcon(action) {
+            const icons = {
+                'falling': 'fas fa-arrow-down',
+                'jumping': 'fas fa-arrow-up',
+                'running': 'fas fa-running',
+                'sitting': 'fas fa-chair',
+                'standing': 'fas fa-male',
+                'walking': 'fas fa-walking'
+            };
+            return icons[action.toLowerCase()] || 'fas fa-question';
+        }
+
+        function animateValue(element, start, end, duration) {
+            const range = end - start;
+            const increment = range / (duration / 16);
+            let current = start;
+            
+            const animate = () => {
+                current += increment;
+                if ((increment >= 0 && current >= end) || (increment < 0 && current <= end)) {
+                    element.textContent = end.toFixed(1);
+                    return;
+                }
+                element.textContent = current.toFixed(1);
+                requestAnimationFrame(animate);
+            };
+            
+            animate();
+        }
+
+        // Update data every 50ms
+        setInterval(updateData, 50);
+    </script>
+</body>
+</html>
