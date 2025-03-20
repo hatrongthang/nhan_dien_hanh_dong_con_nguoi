@@ -54,15 +54,15 @@ Hệ thống sử dụng mô hình YOLOv8 phiên bản small để nhận diện
 ## 📁 Cấu Trúc Dự Án
 
 ```
-student-detection-system/
+nhan-dien-hanh-dong-con-nguoi/
 ├── app/                     # Thư mục chính của ứng dụng
 │   ├── app.py               # Xử lý yêu cầu kết nối với camera và models
 │   ├── server.py            # Xử lý yêu cầu kết nối với camera và models
+│   ├── requirements.txt     # Danh sách thư viện cần thiết
 │   ├── models/              # Mô hình YOLOv12
 │   └── templates/           # HTML templates
 │       └── index.html       # Giao diện người dùng chính
-├── train_models.py                   # Script khởi động ứng dụng
-└── requirements.txt         # Danh sách thư viện cần thiết
+├── train_models.py           # Models được train
 ```
 
 ## 📊 Dữ Liệu
@@ -75,6 +75,97 @@ Dữ liệu huấn luyện là tập dữ liệu riêng được thu thập bở
 - **Backend**: Flask, OpenCV
 - **Frontend**: HTML
 - **Phân tích dữ liệu**: NumPy, Pandas, Matplotlib
+
+
+## Tỷ lệ Train và Test
+Dữ liệu của 10 đối tượng (tình nguyện viên) được chia ngẫu nhiên thu được 151 video với tổng 44416 bức ảnh:
+ - falling: 6779 samples
+ - jumping: 7353 samples
+ - running: 7066 samples
+ - sitting: 7891 samples
+ - standing: 6668 samples
+ - walking: 8659 samples
+
+![image](https://github.com/user-attachments/assets/92ac53be-c71c-49e1-9713-80417c27b985)
+
+## Agenda
+
+### 1. Phân tích dữ liệu (EDA)
+
+-  Một số phân tích trên tập dữ liệu::
+-  Đầu tiên, tiến hành EDA trên tập dữ liệu do chuyên gia tạo ra. Chúng tôi sẽ tìm hiểu dữ liệu và sau đó xây dựng một số mô hình Machine Learning trên tập dữ liệu này.
+-  Tổng số điểm dữ liệu và số lượng đặc trưng trong tập huấn luyện và tập kiểm tra::
+   ```python
+      import os
+      
+      train_dir = "data\split_dataset\images/train"
+      val_dir = "data\split_dataset\images/val"
+      test_dir = "data\split_dataset\images/test"
+      
+      num_train = sum([len(files) for _, _, files in os.walk(train_dir)])
+      num_val = sum([len(files) for _, _, files in os.walk(val_dir)])
+      num_test = sum([len(files) for _, _, files in os.walk(test_dir)])
+      
+      print(f"Training samples: {num_train}")
+      print(f"Validation samples: {num_val}")
+      print(f"Testing samples: {num_test}")
+
+   ```
+   ```
+   Output:
+   Training samples: 31089
+   Validation samples: 6663
+   Testing samples: 6664
+   ```
+
+-  Phân tích số lượng mẫu theo từng lớp hoạt động:
+      ![image](https://github.com/user-attachments/assets/93fed1bd-d5bd-4751-9598-2461dded31ab)
+      *  Dữ liệu được phân bố khá đều giữa các lớp hoạt động.
+          
+
+
+### 3. Deep Learning Models:
+Hệ thống sử dụng kiến trúc kết hợp CNN + LSTM:
+- CNN: Được sử dụng để trích xuất đặc trưng từ các khung hình video.
+- LSTM: Sử dụng các đặc trưng trích xuất từ CNN để mô hình hóa chuỗi thời gian và nhận diện hành động.
+- Pipeline:
+   + Dữ liệu video được chuyển thành chuỗi ảnh.
+   + CNN trích xuất đặc trưng từ từng ảnh.
+   + LSTM xử lý chuỗi đặc trưng để xác định hành động.
+   
+###   4.	Kết quả
+ - Độ chính xác của mô hình CNN + LSTM đạt được 98% trên tập kiểm tra.
+   ![image](https://github.com/user-attachments/assets/d1d17721-6c8a-4901-9ac4-e26eb7829538)
+
+
+
+## Cài đặt
+Mã được viết bằng Python 3.7. Nếu bạn chưa cài đặt Python, bạn có thể tìm thấy nó [**tại đây**](https://www.python.org/downloads/ "Cài đặt Python 3
+.7"). Nếu bạn đang sử dụng phiên bản Python thấp hơn, bạn có thể nâng cấp bằng gói pip, đảm bảo bạn có phiên bản pip mới nhất.
+
+
+  *How To*
+  
+    * Install Required Libraries
+    
+      ```python
+      pip3 install pandas
+      pip3 install numpy
+      pip3 install scikit-learn
+      pip3 install matplotlib
+      pip3 install keras
+      ```
+
+## Quick overview of the dataset
+
+- Cáchành động thu được từ camera được thực hiện từ 10 tình nguyện viên (gọi là đối tượng) trong khi thực hiện 6 hoạt động sau.
+1. Đi bộ
+2. Chạy
+3. Nhảy
+4. Ngã
+5. Ngồi
+6. Đứng.
+- Mỗi khung hình thu được 30fps
 
 ## 📝 Liên Hệ
 
