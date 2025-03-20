@@ -2,6 +2,8 @@
 
 Dự án này phát triển hệ thống Nhận dạng và phân loại các hành động của con người (đi bộ, chạy, nhảy, ngã, đứng yên, ngồi) từ dữ liệu video. 
 Ứng dụng trong nhiều lĩnh vực như giám sát an ninh, chăm sóc sức khỏe, và phân tích hành vi trong môi trường thông minh.
+![image](https://github.com/user-attachments/assets/89f30396-29cc-4a91-85ef-077e71d83fcc)
+
 
 ## 📋 Tổng Quan
 
