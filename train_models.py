@@ -1,365 +1,307 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
-from tensorflow.keras.preprocessing.image import load_img, img_to_array
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
 import seaborn as sns
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import (
+    Conv2D, MaxPooling2D, Flatten, Dense, Dropout,
+    BatchNormalization, LSTM, TimeDistributed
+)
+from tensorflow.keras.callbacks import (
+    EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+)
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from sklearn.metrics import confusion_matrix, classification_report
+from tensorflow.keras.utils import to_categorical
+import cv2
+from sklearn.utils.class_weight import compute_class_weight
 
+# Định nghĩa các tham số
+IMG_SIZE = (128, 128)  # Kích thước ảnh đầu vào
+BATCH_SIZE = 32
+EPOCHS = 100
+PATIENCE = 5
+DATASET_PATH = "data/split_dataset"
+NUM_CLASSES = 6
+CLASS_LABELS = [
+    "falling", "jumping", "running", "sitting", "standing", "walking"
+]
 
+def create_data_generators():
+    """Tạo data generators cho training và validation."""
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest'
+    )
 
-# Cấu hình tham số
-CONFIG = {
-    # Kích thước ảnh và training
-    'IMAGE_SIZE': (128, 128),
-    'BATCH_SIZE': 16,
-    'EPOCHS': 50,
-    'INITIAL_LR': 1e-4,
+    val_datagen = ImageDataGenerator(rescale=1./255)
+    test_datagen = ImageDataGenerator(rescale=1./255)
 
-    # Augmentation
-    'ROTATION_RANGE': 15,
-    'BRIGHTNESS_RANGE': [0.8, 1.2],
-    'HORIZONTAL_FLIP': True,
-    'ZOOM_RANGE': 0.1,
+    return train_datagen, val_datagen, test_datagen
+def load_data(image_dir, label_dir):
+    """Đọc ảnh và nhãn từ thư mục."""
+    images = []
+    labels = []
 
-    # Model
-    'DROPOUT_RATE': 0.4,
-    'L2_LAMBDA': 0.01,
+    for class_idx, class_name in enumerate(CLASS_LABELS):
+        class_image_path = os.path.join(image_dir, class_name)
+        class_label_path = os.path.join(label_dir, class_name)
 
-    # Paths
-    'BASE_DIR': 'data/split_dataset',
-    'MODEL_PATH': 'models/best_model_4.h5',
-    'LOG_DIR': 'logs'
-}
-
-
-
-
-class SafeDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, images_dir, labels_dir, batch_size=CONFIG['BATCH_SIZE'],
-                 img_size=CONFIG['IMAGE_SIZE'], is_training=True, class_names=None):
-        self.images_dir = images_dir
-        self.labels_dir = labels_dir
-        self.batch_size = batch_size
-        self.img_size = img_size
-        self.is_training = is_training
-        self.class_names = class_names
-
-        # Tạo danh sách các cặp (image, label)
-        self.samples = []
-        for action in os.listdir(images_dir):
-            if not os.path.isdir(os.path.join(images_dir, action)):
-                continue
-
-            action_path = os.path.join(images_dir, action)
-            for img_name in os.listdir(action_path):
-                if not img_name.endswith(('.jpg', '.jpeg', '.png')):
-                    continue
-
-                img_path = os.path.join(action_path, img_name)
-                label_path = os.path.join(
-                    labels_dir,
-                    action,
-                    img_name.rsplit('.', 1)[0] + '.txt'
-                )
-
-                if os.path.exists(label_path):
-                    self.samples.append((img_path, label_path, action))
-
-        self.indexes = np.arange(len(self.samples))
-        print(f"Found {len(self.samples)} samples in {images_dir}")
-
-    def __len__(self):
-        return len(self.samples) // self.batch_size
-
-    def parse_yolo_label(self, label_content):
-        """Parse YOLO format label và xử lý trường hợp nhiều bounding box."""
-        lines = label_content.strip().split('\n')
-        boxes = []
-        class_ids = []
-
-        for line in lines:
-            if not line.strip():
-                continue
-            parts = line.strip().split()
-            if len(parts) >= 5:
-                class_id = int(parts[0])
-                x_center, y_center, width, height = map(float, parts[1:5])
-                boxes.append([x_center, y_center, width, height])
-                class_ids.append(class_id)
-
-        if boxes:
-            areas = [w * h for _, _, w, h in boxes]
-            max_idx = np.argmax(areas)
-            return class_ids[max_idx], boxes[max_idx]
-
-        return None, None
-
-    def apply_augmentation(self, image, box=None):
-        if not self.is_training:
-            return image, box
-
-        # Random rotation
-        if np.random.random() > 0.5:
-            angle = np.random.uniform(-CONFIG['ROTATION_RANGE'], CONFIG['ROTATION_RANGE'])
-            image = tf.image.rot90(image, k=int(angle/90))
-
-        # Random brightness
-        if np.random.random() > 0.5:
-            image = tf.image.random_brightness(image, 0.2)
-            image = tf.clip_by_value(image, 0, 1)
-
-        # Random contrast
-        if np.random.random() > 0.5:
-            image = tf.image.random_contrast(image, 0.8, 1.2)
-            image = tf.clip_by_value(image, 0, 1)
-
-        # Random zoom - Sửa lại phần này
-        if np.random.random() > 0.5:
-            scale = np.random.uniform(1-CONFIG['ZOOM_RANGE'], 1+CONFIG['ZOOM_RANGE'])
-            new_height = int(self.img_size[0] * scale)
-            new_width = int(self.img_size[1] * scale)
-
-            # Đảm bảo kích thước mới không nhỏ hơn 1
-            new_height = max(1, new_height)
-            new_width = max(1, new_width)
-
-            image = tf.image.resize(image, (new_height, new_width))
-
-            # Nếu scale > 1 (zoom in), cắt phần thừa
-            # Nếu scale < 1 (zoom out), pad thêm
-            image = tf.image.resize_with_crop_or_pad(
-                image,
-                self.img_size[0],
-                self.img_size[1]
+        for img_name in os.listdir(class_image_path):
+            img_path = os.path.join(class_image_path, img_name)
+            label_path = os.path.join(
+                class_label_path,
+                os.path.splitext(img_name)[0] + ".txt"
             )
 
-        # Horizontal flip
-        if CONFIG['HORIZONTAL_FLIP'] and np.random.random() > 0.5:
-            image = tf.image.flip_left_right(image)
-            if box is not None:
-                x_center, y_center, width, height = box
-                box = [1 - x_center, y_center, width, height]
+            # Đọc và xử lý ảnh
+            img = cv2.imread(img_path)
+            if img is None:
+                print(f"Warning: Could not read image {img_path}")
+                continue
+                
+            img = cv2.resize(img, IMG_SIZE)
+            img = img / 255.0
 
-        return image, box
+            # Đọc nhãn YOLO format
+            if os.path.exists(label_path):
+                with open(label_path, "r") as f:
+                    line = f.readline().strip()
+                    try:
+                        # Lấy class_id từ định dạng YOLO
+                        class_id = int(line.split()[0])
+                        # Đảm bảo class_id nằm trong phạm vi hợp lệ
+                        if class_id >= NUM_CLASSES:
+                            print(f"Warning: Invalid class_id {class_id} in {label_path}")
+                            continue
+                        label = class_id
+                    except (ValueError, IndexError) as e:
+                        print(f"Warning: Invalid label format in {label_path}: {e}")
+                        continue
+            else:
+                label = class_idx
 
-    def __getitem__(self, idx):
-        batch_indexes = self.indexes[idx*self.batch_size:(idx+1)*self.batch_size]
-        batch_samples = [self.samples[i] for i in batch_indexes]
+            images.append(img)
+            labels.append(label)
 
-        X = np.empty((self.batch_size, *self.img_size, 3))
-        y = np.empty((self.batch_size,), dtype=int)
+    if not images:
+        raise ValueError("No valid images found in the dataset")
+        
+    return np.array(images), np.array(labels)
 
-        for i, (img_path, label_path, action) in enumerate(batch_samples):
-            # Load và xử lý ảnh
-            img = load_img(img_path, target_size=self.img_size)
-            img = img_to_array(img) / 255.0
 
-            # Load và parse label
-            with open(label_path, 'r') as f:
-                label_content = f.read().strip()
-            class_id, box = self.parse_yolo_label(label_content)
-
-            if class_id is None:
-                class_id = self.class_names.index(action)
-
-            # Apply augmentation
-            if self.is_training:
-                img, box = self.apply_augmentation(img, box)
-
-            X[i] = img
-            y[i] = class_id
-
-        # Convert to one-hot encoding
-        y = tf.keras.utils.to_categorical(y, num_classes=len(self.class_names))
-
-        return X, y
-
-    def on_epoch_end(self):
-        if self.is_training:
-            np.random.shuffle(self.indexes)
-
-def create_improved_model(input_shape=(*CONFIG['IMAGE_SIZE'], 3), num_classes=6):
+def create_model():
+    """Tạo mô hình CNN-LSTM với kiến trúc sâu hơn."""
     model = Sequential([
-        # First Conv Block
-        Conv2D(64, (3, 3), padding='same', activation='relu',
-               input_shape=input_shape,
-               kernel_regularizer=tf.keras.regularizers.l2(CONFIG['L2_LAMBDA'])),
-        Conv2D(64, (3, 3), padding='same', activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(2, 2),
-        Dropout(CONFIG['DROPOUT_RATE']),
-
-        # Second Conv Block
-        Conv2D(128, (3, 3), padding='same', activation='relu'),
-        Conv2D(128, (3, 3), padding='same', activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(2, 2),
-        Dropout(CONFIG['DROPOUT_RATE']),
-
-        # Third Conv Block
-        Conv2D(256, (3, 3), padding='same', activation='relu'),
-        Conv2D(256, (3, 3), padding='same', activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(2, 2),
-        Dropout(CONFIG['DROPOUT_RATE']),
-
-        # Fourth Conv Block
-        Conv2D(512, (3, 3), padding='same', activation='relu'),
-        Conv2D(512, (3, 3), padding='same', activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(2, 2),
-        Dropout(CONFIG['DROPOUT_RATE']),
-
+        # CNN layers
+        TimeDistributed(
+            Conv2D(32, (3, 3), activation='relu', padding='same'),
+            input_shape=(1, 128, 128, 3)
+        ),
+        TimeDistributed(BatchNormalization()),
+        TimeDistributed(MaxPooling2D(2, 2)),
+        
+        TimeDistributed(Conv2D(64, (3, 3), activation='relu', padding='same')),
+        TimeDistributed(BatchNormalization()),
+        TimeDistributed(MaxPooling2D(2, 2)),
+        
+        TimeDistributed(Conv2D(128, (3, 3), activation='relu', padding='same')),
+        TimeDistributed(BatchNormalization()),
+        TimeDistributed(MaxPooling2D(2, 2)),
+        
+        # Flatten và LSTM layers
+        TimeDistributed(Flatten()),
+        LSTM(128, return_sequences=True),
+        LSTM(64, return_sequences=False),
+        
         # Dense layers
-        Flatten(),
-        Dense(1024, activation='relu'),
-        BatchNormalization(),
+        Dense(256, activation='relu'),
         Dropout(0.5),
-        Dense(512, activation='relu'),
-        BatchNormalization(),
-        Dropout(0.5),
-        Dense(num_classes, activation='softmax')
+        Dense(NUM_CLASSES, activation='softmax')
     ])
-
-    optimizer = tf.keras.optimizers.Adam(
-        learning_rate=CONFIG['INITIAL_LR'],
-        beta_1=0.9,
-        beta_2=0.999,
-        epsilon=1e-07
-    )
-
-    model.compile(
-        optimizer=optimizer,
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
 
     return model
 
-def plot_training_history(history):
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-    # Plot loss
-    ax1.plot(history.history['loss'], label='Training Loss')
-    ax1.plot(history.history['val_loss'], label='Validation Loss')
-    ax1.set_title('Loss per Epoch')
-    ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Loss')
-    ax1.legend()
-
-    # Plot accuracy
-    ax2.plot(history.history['accuracy'], label='Training Accuracy')
-    ax2.plot(history.history['val_accuracy'], label='Validation Accuracy')
-    ax2.set_title('Accuracy per Epoch')
-    ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Accuracy')
-    ax2.legend()
-
-    plt.tight_layout()
-    plt.savefig('training_history128.png')
-    plt.close()
-
-def plot_confusion_matrix(model, test_generator, class_names):
-    predictions = []
-    true_labels = []
-
-    for i in range(len(test_generator)):
-        x, y = test_generator[i]
-        pred = model.predict(x)
-        predictions.extend(np.argmax(pred, axis=1))
-        true_labels.extend(np.argmax(y, axis=1))
-
-    cm = confusion_matrix(true_labels, predictions)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=class_names,
-                yticklabels=class_names)
-    plt.title('Confusion Matrix')
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.savefig('confusion_matrix128.png')
-    plt.close()
-
-def main():
-    # Tạo thư mục cần thiết
-    os.makedirs('models', exist_ok=True)
-    os.makedirs(CONFIG['LOG_DIR'], exist_ok=True)
-
-    # Định nghĩa classes
-    actions = ['falling', 'jumping', 'running', 'sitting', 'standing', 'walking']
-
-    # Tạo generators
-    train_gen = SafeDataGenerator(
-        os.path.join(CONFIG['BASE_DIR'], 'images/train'),
-        os.path.join(CONFIG['BASE_DIR'], 'labels/train'),
-        class_names=actions,
-        is_training=True
-    )
-
-    val_gen = SafeDataGenerator(
-        os.path.join(CONFIG['BASE_DIR'], 'images/val/val'),
-        os.path.join(CONFIG['BASE_DIR'], 'labels/val'),
-        class_names=actions,
-        is_training=False
-    )
-
-    test_gen = SafeDataGenerator(
-        os.path.join(CONFIG['BASE_DIR'], 'images/test/test'),
-        os.path.join(CONFIG['BASE_DIR'], 'labels/test'),
-        class_names=actions,
-        is_training=False
-    )
-
-    # Callbacks
+def create_callbacks():
+    """Tạo các callback cho quá trình training."""
     callbacks = [
-        tf.keras.callbacks.ModelCheckpoint(
-            CONFIG['MODEL_PATH'],
-            monitor='val_accuracy',
-            save_best_only=True,
-            mode='max',
-            verbose=1
-        ),
-        tf.keras.callbacks.EarlyStopping(
+        EarlyStopping(
             monitor='val_loss',
-            patience=15,
-            restore_best_weights=True,
-            verbose=1
+            patience=PATIENCE,
+            restore_best_weights=True
         ),
-        tf.keras.callbacks.ReduceLROnPlateau(
+        ModelCheckpoint(
+            'best_model.h5',
+            monitor='val_accuracy',
+            save_best_only=True
+        ),
+        ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.2,
-            patience=7,
-            min_lr=1e-7,
-            verbose=1
-        ),
-        tf.keras.callbacks.TensorBoard(
-            log_dir=CONFIG['LOG_DIR'],
-            histogram_freq=1
+            patience=3,
+            min_lr=0.00001
         )
     ]
+    return callbacks
 
-    # Tạo và train model
-    # Tạo và train model
-    model = create_improved_model(num_classes=len(actions))
-    history = model.fit(
-        train_gen,
-        validation_data=val_gen,
-        epochs=CONFIG['EPOCHS'],
-        callbacks=callbacks
+
+def plot_training_history(history):
+    """Vẽ biểu đồ loss và accuracy."""
+    plt.figure(figsize=(12, 5))
+    
+    # Plot loss
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Loss per Epoch')
+    
+    # Plot accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.title('Accuracy per Epoch')
+    
+    plt.tight_layout()
+    plt.savefig('training_history.png')
+    plt.close()
+
+
+def plot_confusion_matrix(y_true, y_pred, labels):
+    """Vẽ ma trận nhầm lẫn."""
+    cm = confusion_matrix(y_true, y_pred)
+    
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt='d',
+        cmap='Blues',
+        xticklabels=labels,
+        yticklabels=labels
     )
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.title('Confusion Matrix')
+    plt.tight_layout()
+    plt.savefig('confusion_matrix.png')
+    plt.close()
 
-    # Plot training history
+
+def main():
+    # Tạo data generators
+    train_datagen, val_datagen, test_datagen = create_data_generators()
+    
+    # Load dữ liệu
+    print("Loading training data...")
+    X_train, y_train = load_data(
+        f"{DATASET_PATH}/images/train",
+        f"{DATASET_PATH}/labels/train"
+    )
+    
+    print("Loading validation data...")
+    X_val, y_val = load_data(
+        f"{DATASET_PATH}/images/val",
+        f"{DATASET_PATH}/labels/val"
+    )
+    
+    print("Loading test data...")
+    X_test, y_test = load_data(
+        f"{DATASET_PATH}/images/test",
+        f"{DATASET_PATH}/labels/test"
+    )
+    
+    # One-hot encoding
+    y_train = to_categorical(y_train, NUM_CLASSES)
+    y_val = to_categorical(y_val, NUM_CLASSES)
+    y_test = to_categorical(y_test, NUM_CLASSES)
+    
+    # Tính class weights
+    y_train_classes = np.argmax(y_train, axis=1)
+    class_weights = compute_class_weight(
+        'balanced',
+        classes=np.unique(y_train_classes),
+        y=y_train_classes
+    )
+    class_weight_dict = dict(enumerate(class_weights))
+    
+    # Tạo và compile mô hình
+    print("Creating model...")
+    model = create_model()
+    model.compile(
+        loss='categorical_crossentropy',
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+        metrics=['accuracy']
+    )
+    
+    # Tạo callbacks
+    callbacks = create_callbacks()
+    
+    # Training
+    print("Starting training...")
+    history = model.fit(
+        train_datagen.flow(
+            X_train.reshape(-1, 1, 128, 128, 3),
+            y_train,
+            batch_size=BATCH_SIZE
+        ),
+        epochs=EPOCHS,
+        validation_data=val_datagen.flow(
+            X_val.reshape(-1, 1, 128, 128, 3),
+            y_val,
+            batch_size=BATCH_SIZE
+        ),
+        callbacks=callbacks,
+        class_weight=class_weight_dict
+    )
+    
+    # Đánh giá mô hình
+    print("Evaluating model...")
+    test_loss, test_acc = model.evaluate(
+        test_datagen.flow(
+            X_test.reshape(-1, 1, 128, 128, 3),
+            y_test,
+            batch_size=BATCH_SIZE
+        )
+    )
+    print(f"Test Accuracy: {test_acc*100:.2f}%")
+    
+    # Vẽ biểu đồ
+    print("Plotting training history...")
     plot_training_history(history)
+    
+    # Tạo ma trận nhầm lẫn
+    print("Generating confusion matrix...")
+    y_pred = model.predict(
+        test_datagen.flow(
+            X_test.reshape(-1, 1, 128, 128, 3),
+            y_test,
+            batch_size=BATCH_SIZE
+        )
+    )
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    y_true = np.argmax(y_test, axis=1)
+    
+    plot_confusion_matrix(y_true, y_pred_classes, CLASS_LABELS)
+    
+    # In báo cáo phân loại
+    print("\nClassification Report:")
+    print(classification_report(y_true, y_pred_classes, target_names=CLASS_LABELS))
 
-    # Evaluate model
-    test_loss, test_acc = model.evaluate(test_gen)
-    print(f"\nTest accuracy: {test_acc:.4f}")
-
-    # Plot confusion matrix
-    plot_confusion_matrix(model, test_gen, actions)
 
 if __name__ == "__main__":
     main()
+
