@@ -169,7 +169,7 @@ Mã được viết bằng Python 3.7. Nếu bạn chưa cài đặt Python, b�
 
 ## 📝 Liên Hệ
 
-[Thông tin liên hệ của bạn]
+gmail: hoangphuonghue20@gmail.com
 
 ## 📜 Giấy Phép
 
