@@ -182,10 +182,6 @@ Mã được viết bằng Python 3.7. Nếu bạn chưa cài đặt Python, b�
 
 ## 📝 Liên Hệ
 
-gmail: hoangphuonghue20@gmail.com
+email: hoangphuonghue20@gmail.com
 
-## 📜 Giấy Phép
 
-[Thông tin giấy phép]
-
----
