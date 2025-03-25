@@ -1,19 +1,15 @@
-# Nhận dạng hành động con người bằng Camera
+<h1 align="center">HỆ THỐNG NHẬN DẠNG HÀNH ĐỘNG CON NGƯỜI BẰNG CAMERA </h1>
+<div align="center">
+
 <p align="center">
-  <img src="./anh/logodnu.webp" alt="DaiNam University Logo" width="200"/>
-    <img src="./anh/mobile.png" alt="AIoTLab Logo" width="170"/>
+  <img src="image\logoDaiNam.png" alt="DaiNam University Logo" width="200"/>
+  <img src="image\LogoAIoTLab.png" alt="AIoTLab Logo" width="170"/>
 </p>
 
-<div style="text-align: center;">
-  <a href="https://www.facebook.com/DNUAIoTLab">
-    <img src="https://img.shields.io/badge/Made%20by%20AIoTLab-blue?style=for-the-badge" alt="Made by AIoTLab">
-  </a>
-  <a href="https://fitdnu.net/">
-    <img src="https://img.shields.io/badge/Fit%20DNU-green?style=for-the-badge" alt="Fit DNU">
-  </a>
-  <a href="https://dainam.edu.vn">
-    <img src="https://img.shields.io/badge/DaiNam%20University-red?style=for-the-badge" alt="DaiNam University">
-  </a>
+[![Made by AIoTLab](https://img.shields.io/badge/Made%20by%20AIoTLab-blue?style=for-the-badge)](https://www.facebook.com/DNUAIoTLab)
+[![Fit DNU](https://img.shields.io/badge/Fit%20DNU-green?style=for-the-badge)](https://fitdnu.net/)
+[![DaiNam University](https://img.shields.io/badge/DaiNam%20University-red?style=for-the-badge)](https://dainam.edu.vn)
+
 </div>
 
 
