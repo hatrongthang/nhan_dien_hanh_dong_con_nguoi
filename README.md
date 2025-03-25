@@ -1,13 +1,26 @@
 # Nhận dạng hành động con người bằng Camera
+<p align="center">
+  <img src="./anhimage/logodnu.webp" alt="DaiNam University Logo" width="200"/>
+    <img src="./anhimage/LogoAIoTLab.png" alt="AIoTLab Logo" width="170"/>
+</p>
+
+[![Made by AIoTLab](https://img.shields.io/badge/Made%20by%20AIoTLab-blue?style=for-the-badge)](https://www.facebook.com/DNUAIoTLab)
+[![Fit DNU](https://img.shields.io/badge/Fit%20DNU-green?style=for-the-badge)](https://fitdnu.net/)
+[![DaiNam University](https://img.shields.io/badge/DaiNam%20University-red?style=for-the-badge)](https://dainam.edu.vn)
+</div>
 
 Dự án này phát triển hệ thống Nhận dạng và phân loại các hành động của con người (đi bộ, chạy, nhảy, ngã, đứng yên, ngồi) từ dữ liệu video. 
 Ứng dụng trong nhiều lĩnh vực như giám sát an ninh, chăm sóc sức khỏe, và phân tích hành vi trong môi trường thông minh.
+
 ![image](https://github.com/user-attachments/assets/89f30396-29cc-4a91-85ef-077e71d83fcc)
 
 
 ## 📋 Tổng Quan
 
 Hệ thống sử dụng mô hình YOLOv8 phiên bản small để nhận diện hành động con người qua camera, kết hợp với giao diện web để hiển thị kết quả và quản lý.
+Mô hình hệ thống
+![image](https://github.com/user-attachments/assets/713df677-ff07-432d-aca1-3b537edfc9f0)
+
 
 ## 🔍 Thành Phần Chính
 
