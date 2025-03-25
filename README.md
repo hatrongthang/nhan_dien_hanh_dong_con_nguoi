@@ -79,11 +79,12 @@ nhan-dien-hanh-dong-con-nguoi/
 ├── app/                     # Thư mục chính của ứng dụng
 │   ├── app.py               # Xử lý yêu cầu kết nối với camera và models
 │   ├── server.py            # Xử lý yêu cầu kết nối với camera và models
-│   ├── requirements.txt     # Danh sách thư viện cần thiết
 │   ├── models/              # Mô hình YOLOv12
 │   └── templates/           # HTML templates
 │       └── index.html       # Giao diện người dùng chính
 ├── train_models.py           # Models được train
+│── requirements.txt     # Danh sách thư viện cần thiết
+├── Poster_CNTT16-06_Aiot_N10.pptx           # Poster nghiên cứu
 ```
 
 ## 📊 Dữ Liệu
